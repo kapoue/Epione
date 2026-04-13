@@ -75,4 +75,12 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
+
+    // WorkManager (avec support Hilt)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.androidx.compiler)
+
+    // OkHttp (téléchargement DB + manifest)
+    implementation(libs.okhttp)
 }

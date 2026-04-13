@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "db_url": "",
+  "db_sha256": "",
+  "released_at": "2026-04-13",
+  "record_count": 25,
+  "note": "Version 1 = données de test (assets). Incrémentez 'version' pour déclencher une MAJ sur les appareils existants."
+}

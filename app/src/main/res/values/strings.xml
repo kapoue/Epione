@@ -12,4 +12,8 @@
     <string name="error_not_found">Établissement introuvable.</string>
     <string name="loading">Chargement…</string>
     <string name="nav_back">Retour</string>
+    <!-- Mise à jour -->
+    <string name="update_available">Mise à jour téléchargée. Redémarrez pour l\'appliquer.</string>
+    <string name="update_restart">Redémarrer</string>
+    <string name="update_checking">Vérification des mises à jour…</string>
 </resources>
