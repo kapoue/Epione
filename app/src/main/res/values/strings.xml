@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Épione</string>
+    <string name="screen_home_title">Établissements Sanitaires</string>
+    <string name="screen_detail_title">Fiche Établissement</string>
+    <string name="label_city">Ville</string>
+    <string name="label_address">Adresse</string>
+    <string name="label_phone">Téléphone</string>
+    <string name="label_type">Type</string>
+    <string name="label_quality">Qualité</string>
+    <string name="quality_not_evaluated">Non évalué</string>
+    <string name="search_hint">Rechercher un établissement…</string>
+    <string name="error_not_found">Établissement introuvable.</string>
+    <string name="loading">Chargement…</string>
+    <string name="nav_back">Retour</string>
+</resources>

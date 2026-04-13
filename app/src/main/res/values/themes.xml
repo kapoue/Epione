@@ -1,0 +1,14 @@
+<resources>
+    <!-- Thème de base pour une app Compose pure (pas de ActionBar XML) -->
+    <style name="Theme.Epione" parent="Theme.AppCompat.Light.NoActionBar" />
+
+    <!-- Thème de la MainActivity au démarrage (Splash Screen natif) -->
+    <style name="Theme.Epione.Splash" parent="Theme.SplashScreen">
+        <!-- Couleur de fond du splash -->
+        <item name="windowSplashScreenBackground">@color/epione_marble_dark</item>
+        <!-- Icône centrée du splash -->
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <!-- Thème à appliquer après le splash -->
+        <item name="postSplashScreenTheme">@style/Theme.Epione</item>
+    </style>
+</resources>
