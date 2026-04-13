@@ -1,8 +1,8 @@
 {
-  "version": 2,
-  "db_url": "",
-  "db_sha256": "",
+  "version": 4,
+  "db_url": "https://github.com/kapoue/Epione/releases/download/v3.0/epione.db",
+  "db_sha256": "81eb18b83bb1c4a6939f6b0ae77be0036bd95d2dc35cf04c4c341e02d1b161f1",
   "released_at": "2026-04-13",
-  "record_count": 25,
+  "record_count": 8266,
   "note": "Version 1 = données de test (assets). Incrémentez 'version' pour déclencher une MAJ sur les appareils existants."
 }

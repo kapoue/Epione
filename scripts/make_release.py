@@ -55,9 +55,12 @@ ASSETS_DIR   = PROJECT_ROOT / "app" / "src" / "main" / "assets"
 MANIFEST_PATH = PROJECT_ROOT / "manifest.json"
 DB_NAME      = "epione.db"
 
-# API data.gouv.fr — dataset FINESS établissements
-FINESS_DATASET_ID = "53699fe4a3a729239d206227"
-FINESS_API_URL    = f"https://www.data.gouv.fr/api/1/datasets/{FINESS_DATASET_ID}/"
+# API data.gouv.fr — dataset FINESS établissements (slug stable)
+FINESS_DATASET_SLUG = "finess-extraction-du-fichier-des-etablissements"
+FINESS_API_URL = f"https://www.data.gouv.fr/api/1/datasets/{FINESS_DATASET_SLUG}/"
+
+# Mots-clés identifiant le fichier établissements dans les ressources du dataset
+FINESS_RESOURCE_KEYWORDS = ["géolocalisé", "geolocalis", "etablissement"]
 
 # Catégorie de regroupement sanitaire dans FINESS
 SANITAIRE_CATEGRETAB = "1100"
@@ -84,30 +87,41 @@ SANITAIRE_CATEGETAB_CODES = {
 # ---------------------------------------------------------------------------
 
 def find_finess_csv_url() -> str:
-    """Retourne l'URL de téléchargement du dernier fichier établissements FINESS."""
+    """Retourne l'URL de téléchargement du fichier établissements FINESS."""
     print("[1/5] Interrogation de l'API data.gouv.fr…")
     response = requests.get(FINESS_API_URL, timeout=30)
     response.raise_for_status()
     dataset = response.json()
 
-    # Cherche la ressource "etalab-cs1100507" (établissements)
-    for resource in dataset.get("resources", []):
-        title = resource.get("title", "").lower()
-        url   = resource.get("url", "")
-        fmt   = resource.get("format", "").lower()
-        if "cs1100507" in title and "stock" in title and fmt in ("csv", "zip", ""):
-            print(f"[1/5] Ressource trouvée : {resource['title']}")
-            return url
+    resources = dataset.get("resources", [])
+    print(f"[1/5] {len(resources)} ressources trouvées dans le dataset.")
 
-    # Fallback : prendre la première ressource de type CSV
-    for resource in dataset.get("resources", []):
-        if resource.get("format", "").lower() in ("csv", "zip"):
-            print(f"[1/5] Fallback ressource : {resource['title']}")
-            return resource["url"]
+    # Cherche la ressource contenant les établissements (fichier "et")
+    for resource in resources:
+        title = resource.get("title", "").lower()
+        url   = resource.get("url", "").lower()
+        fmt   = resource.get("format", "").lower()
+        # Correspondance sur les mots-clés identifiants du fichier établissements
+        if any(kw in title or kw in url for kw in FINESS_RESOURCE_KEYWORDS):
+            if fmt in ("csv", "zip", "") or url.endswith((".csv", ".zip")):
+                real_url = resource["url"]
+                print(f"[1/5] Ressource trouvée : {resource['title']}")
+                return real_url
+
+    # Fallback 1 : prendre le fichier le plus gros (probable = établissements)
+    csv_resources = [
+        r for r in resources
+        if r.get("format", "").lower() in ("csv", "zip")
+        or r.get("url", "").lower().endswith((".csv", ".zip"))
+    ]
+    if csv_resources:
+        largest = max(csv_resources, key=lambda r: r.get("filesize") or 0)
+        print(f"[1/5] Fallback (plus gros fichier) : {largest['title']}")
+        return largest["url"]
 
     raise RuntimeError(
-        "Aucun fichier FINESS trouvé via l'API. "
-        "Vérifiez https://www.data.gouv.fr/fr/datasets/finess-extraction-du-fichier-des-etablissements/"
+        "Aucun fichier FINESS établissements trouvé. "
+        "Vérifiez : https://www.data.gouv.fr/fr/datasets/finess-extraction-du-fichier-des-etablissements/"
     )
 
 
@@ -140,118 +154,116 @@ def download_and_parse_finess(url: str) -> list[dict]:
                 raise RuntimeError("Aucun CSV trouvé dans l'archive ZIP.")
             raw_bytes = zf.read(csv_name)
 
-    # Décodage (UTF-8 avec BOM possible, sinon Latin-1)
+    # Décodage
     try:
         text = raw_bytes.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw_bytes.decode("latin-1")
 
-    return _parse_csv(text)
+    return _parse_finess_positional(text)
 
 
-def _parse_csv(text: str) -> list[dict]:
-    """Parse le CSV FINESS et filtre les établissements sanitaires."""
-    reader = csv.DictReader(io.StringIO(text), delimiter=";")
-    rows   = list(reader)
+# Mapping des colonnes du fichier FINESS positionnel (etalab-cs1100507)
+# Format : chaque ligne commence par "structureet" suivi des champs
+_COL = {
+    "type":            0,   # "structureet"
+    "finess_et":       1,   # N° FINESS établissement ← clé primaire (nofinesset)
+    "finess_ej":       2,   # N° FINESS entité juridique (nofinessej)
+    "rs":              3,   # Raison sociale courte
+    "rslongue":        4,   # Raison sociale longue
+    "complnom":        5,
+    "compldistrib":    6,
+    "numvoie":         7,
+    "typvoie":         8,
+    "voie":            9,
+    "compvoie":        10,
+    "lieuditbp":       11,
+    "commune":         12,
+    "departement":     13,
+    "libdepartement":  14,
+    "ligneacheminement": 15, # "75010 PARIS"
+    "telephone":       16,
+    "telecopie":       17,
+    "categetab":       18,   # Code catégorie établissement
+    "libcategetab":    19,   # Libellé catégorie établissement
+    "categretab":      20,   # Code groupe → "1100" = sanitaire
+    "libcategretab":   21,   # Libellé groupe
+    "siret":           22,
+    "codeape":         23,
+    "dateferme":       31,   # Non vide = établissement fermé
+}
 
-    if not rows:
-        raise RuntimeError("CSV FINESS vide ou mal formé.")
 
-    # Affiche les colonnes disponibles pour le débogage
-    colonnes = list(rows[0].keys())
-    print(f"[2/5] {len(rows)} lignes lues. Colonnes : {colonnes[:8]}…")
+def _parse_finess_positional(text: str) -> list[dict]:
+    """Parse le CSV FINESS positionnel et filtre les établissements sanitaires."""
+    lines = text.splitlines()
+    total_lines = len(lines)
+    print(f"[2/5] {total_lines} lignes lues.")
 
     etablissements = []
-    skipped = 0
+    skipped_type = 0
+    skipped_ferme = 0
+    skipped_non_sani = 0
 
-    for row in rows:
-        # Normalisation des clés (espaces, casse variable selon les versions)
-        row = {k.strip().lower(): v.strip() for k, v in row.items()}
-
-        # Filtre : sanitaire uniquement
-        categretab = row.get("categretab", "")
-        if categretab != SANITAIRE_CATEGRETAB:
-            skipped += 1
+    for line in lines:
+        if not line.startswith("structureet"):
+            skipped_type += 1
             continue
 
-        # Établissements fermés exclus
-        if row.get("dateferme", ""):
-            skipped += 1
+        parts = line.split(";")
+        if len(parts) < 22:
             continue
 
-        etab = _extract_etablissement(row)
-        if etab:
-            etablissements.append(etab)
+        def col(idx: int) -> str:
+            return parts[idx].strip() if idx < len(parts) else ""
+
+        # Filtre : établissement fermé
+        if col(_COL["dateferme"]):
+            skipped_ferme += 1
+            continue
+
+        # Filtre : sanitaire uniquement (categretab commence par "11")
+        if not col(_COL["categretab"]).startswith("11"):
+            skipped_non_sani += 1
+            continue
+
+        finess_et = col(_COL["finess_et"])
+        nom = col(_COL["rslongue"]) or col(_COL["rs"])
+        if not finess_et or not nom:
+            continue
+
+        # Adresse
+        num   = col(_COL["numvoie"])
+        typ   = col(_COL["typvoie"])
+        voie  = col(_COL["voie"])
+        comp  = col(_COL["compvoie"]) or col(_COL["lieuditbp"])
+        adresse = " ".join(filter(None, [num, typ, voie, comp])).strip()
+
+        # CP + Ville
+        ligne = col(_COL["ligneacheminement"])
+        if ligne and len(ligne) >= 5:
+            code_postal = ligne[:5]
+            ville = ligne[5:].strip().title()
+        else:
+            code_postal = col(_COL["departement"])
+            ville = col(_COL["libdepartement"]).title()
+
+        etablissements.append({
+            "finess_et":   finess_et,
+            "nom":         _clean_name(nom),
+            "type":        col(_COL["libcategetab"]) or "Établissement sanitaire",
+            "adresse":     adresse or "Adresse non renseignée",
+            "code_postal": code_postal,
+            "ville":       ville or "Ville inconnue",
+            "telephone":   _clean_phone(col(_COL["telephone"])),
+            "site_web":    None,
+            "latitude":    None,   # Coordonnées absentes dans ce fichier
+            "longitude":   None,
+        })
 
     print(f"[2/5] {len(etablissements)} établissements sanitaires retenus "
-          f"({skipped} exclus).")
+          f"({skipped_ferme} fermés exclus, {skipped_non_sani} non sanitaires exclus).")
     return etablissements
-
-
-def _extract_etablissement(row: dict) -> dict | None:
-    """Extrait et nettoie les champs d'une ligne FINESS."""
-    finess_et = row.get("nofinesset", "").strip()
-    nom = (row.get("rslongue") or row.get("rs", "")).strip()
-
-    if not finess_et or not nom:
-        return None
-
-    # Adresse : numvoie + typvoie + voie
-    num   = row.get("numvoie", "")
-    typ   = row.get("typvoie", "")
-    voie  = row.get("voie", "")
-    comp  = row.get("compvoie", "") or row.get("lieuditbp", "")
-    adresse = " ".join(filter(None, [num, typ, voie, comp])).strip()
-
-    # CP + Ville depuis ligneacheminement (ex. "75010 PARIS")
-    ligne = row.get("ligneacheminement", "")
-    if ligne and len(ligne) >= 5:
-        code_postal = ligne[:5]
-        ville = ligne[5:].strip().title()
-    else:
-        code_postal = row.get("cp", "")
-        ville = row.get("commune", "").title()
-
-    # Type d'établissement
-    type_etab = row.get("libcategetab") or row.get("libcategretab", "Établissement sanitaire")
-    type_etab = type_etab.strip()
-
-    # Coordonnées
-    lat, lon = _get_coordinates(row)
-
-    return {
-        "finess_et":   finess_et,
-        "nom":         _clean_name(nom),
-        "type":        type_etab,
-        "adresse":     adresse or "Adresse non renseignée",
-        "code_postal": code_postal,
-        "ville":       ville or "Ville inconnue",
-        "telephone":   _clean_phone(row.get("telephone", "")),
-        "site_web":    None,
-        "latitude":    lat,
-        "longitude":   lon,
-    }
-
-
-def _get_coordinates(row: dict) -> tuple[float | None, float | None]:
-    """Extrait et convertit les coordonnées (Lambert 93 → WGS84 si pyproj disponible)."""
-    x_str = row.get("coordxet", "")
-    y_str = row.get("coordyet", "")
-
-    if not x_str or not y_str:
-        return None, None
-
-    try:
-        x, y = float(x_str.replace(",", ".")), float(y_str.replace(",", "."))
-        if HAS_PYPROJ:
-            lon, lat = _transformer.transform(x, y)
-            # Santé-check : coordonnées dans les limites de la France métropolitaine + DOM
-            if -180 <= lon <= 180 and -90 <= lat <= 90:
-                return round(lat, 6), round(lon, 6)
-        # Sans pyproj : coordonnées Lambert 93 brutes (inutilisables pour affichage)
-        return None, None
-    except (ValueError, Exception):
-        return None, None
 
 
 def _clean_name(name: str) -> str:
