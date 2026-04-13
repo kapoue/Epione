@@ -65,11 +65,11 @@ class HomeViewModel @Inject constructor(
 
     private val workManager = WorkManager.getInstance(context)
 
-    /** True quand le Worker tourne (téléchargement/vérification en cours). */
+    /** True uniquement quand le Worker télécharge activement (RUNNING). */
     val isUpdateInProgress: StateFlow<Boolean> = workManager
         .getWorkInfosByTagFlow(DatabaseUpdateWorker.TAG)
         .map { list ->
-            list.any { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED }
+            list.any { it.state == WorkInfo.State.RUNNING }
         }
         .stateIn(
             scope = viewModelScope,

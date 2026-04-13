@@ -222,8 +222,11 @@ def _parse_finess_positional(text: str) -> list[dict]:
             skipped_ferme += 1
             continue
 
-        # Filtre : sanitaire uniquement (categretab commence par "11")
-        if not col(_COL["categretab"]).startswith("11"):
+        # Filtre : sanitaire uniquement
+        # - "11xx" = établissements sanitaires classiques (CH, cliniques, HAD, SSR…)
+        # - "22xx" = Service de Santé des Armées (hôpitaux militaires, ex. Bégin)
+        categretab = col(_COL["categretab"])
+        if not (categretab.startswith("11") or categretab.startswith("22")):
             skipped_non_sani += 1
             continue
 
@@ -418,7 +421,7 @@ def update_manifest(db_path: Path, record_count: int) -> None:
         print(f"  [NOTE] db_url auto-générée. Mettez à jour après avoir créé la Release GitHub.")
 
     MANIFEST_PATH.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[5/5] manifest.json → version {new_version}, sha256 = {sha256[:16]}…")
+    print(f"[5/5] manifest.json -> version {new_version}, sha256 = {sha256[:16]}...")
     print()
     print("=" * 60)
     print("RELEASE PRÊTE — Étapes suivantes :")
