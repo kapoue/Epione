@@ -16,4 +16,8 @@
     <string name="update_available">Mise à jour téléchargée. Redémarrez pour l\'appliquer.</string>
     <string name="update_restart">Redémarrer</string>
     <string name="update_checking">Vérification des mises à jour…</string>
+    <!-- Lot 3 : recherche et géolocalisation -->
+    <string name="search_clear">Effacer la recherche</string>
+    <string name="location_enable">Activer la position</string>
+    <string name="distance_all">Tous</string>
 </resources>

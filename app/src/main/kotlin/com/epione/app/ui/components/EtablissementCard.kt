@@ -21,16 +21,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.epione.app.R
 import com.epione.app.data.model.Etablissement
+import com.epione.app.util.formatDistanceKm
 
 /**
  * Carte affichée dans la liste de l'écran Home.
- * Affiche le nom, le type et la ville de l'établissement.
+ * Affiche le nom, le type, la ville et la distance si disponible.
  */
 @Composable
 fun EtablissementCard(
     etablissement: Etablissement,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    distanceKm: Double? = null,
 ) {
     Card(
         modifier = modifier
@@ -57,6 +59,13 @@ fun EtablissementCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                 )
+                if (distanceKm != null) {
+                    Text(
+                        text = formatDistanceKm(distanceKm),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
@@ -67,3 +76,4 @@ fun EtablissementCard(
         }
     }
 }
+

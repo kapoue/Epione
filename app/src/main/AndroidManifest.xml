@@ -5,6 +5,10 @@
     <!-- Lot 1 : permissions minimales -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Lot 3 : géolocalisation native (sans Google Play Services) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:name=".EpioneApplication"
         android:allowBackup="true"

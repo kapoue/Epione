@@ -1,5 +1,6 @@
 package com.epione.app.ui.screen.home
 
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,19 +9,33 @@ import androidx.work.WorkManager
 import com.epione.app.data.model.Etablissement
 import com.epione.app.data.repository.EtablissementRepository
 import com.epione.app.util.PrefsKeys
+import com.epione.app.util.haversineKm
 import com.epione.app.worker.DatabaseUpdateWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import android.content.Context
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Named
+
+/** Établissement enrichi avec sa distance par rapport à la position de l'utilisateur. */
+data class EtablissementItem(
+    val etablissement: Etablissement,
+    val distanceKm: Double? = null,
+)
+
+private data class FilterState(
+    val query: String,
+    val lat: Double?,
+    val lon: Double?,
+    val distKm: Int?,
+)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -33,31 +48,74 @@ class HomeViewModel @Inject constructor(
     // Recherche
     // -------------------------------------------------------------------------
 
-    /** Terme de recherche saisi par l'utilisateur. */
     val searchQuery = MutableStateFlow("")
-
-    /**
-     * Liste réactive des établissements.
-     * Bascule entre liste complète et résultats filtrés selon [searchQuery].
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val etablissements: StateFlow<List<Etablissement>> = searchQuery
-        .flatMapLatest { query ->
-            if (query.isBlank()) {
-                repository.getAllEtablissements()
-            } else {
-                repository.searchEtablissements(query)
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
-        )
 
     fun onSearchQueryChange(query: String) {
         searchQuery.value = query
     }
+
+    // -------------------------------------------------------------------------
+    // Géolocalisation
+    // -------------------------------------------------------------------------
+
+    private val _userLat = MutableStateFlow<Double?>(null)
+    private val _userLon = MutableStateFlow<Double?>(null)
+
+    val hasLocation: StateFlow<Boolean> = combine(_userLat, _userLon) { lat, lon ->
+        lat != null && lon != null
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun updateUserLocation(lat: Double, lon: Double) {
+        _userLat.value = lat
+        _userLon.value = lon
+    }
+
+    // -------------------------------------------------------------------------
+    // Filtre distance
+    // -------------------------------------------------------------------------
+
+    val selectedDistanceKm = MutableStateFlow<Int?>(null)
+
+    fun setDistanceFilter(km: Int?) {
+        selectedDistanceKm.value = km
+    }
+
+    // -------------------------------------------------------------------------
+    // Liste (avec distance calculée + filtre + tri)
+    // -------------------------------------------------------------------------
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val etablissements: StateFlow<List<EtablissementItem>> =
+        combine(searchQuery, _userLat, _userLon, selectedDistanceKm, ::FilterState)
+            .flatMapLatest { filter ->
+                val rawFlow = if (filter.query.isBlank()) {
+                    repository.getAllEtablissements()
+                } else {
+                    repository.searchEtablissements(filter.query)
+                }
+                rawFlow.map { list ->
+                    var items = list.map { etab ->
+                        val dist = if (filter.lat != null && filter.lon != null &&
+                            etab.latitude != null && etab.longitude != null
+                        ) {
+                            haversineKm(filter.lat, filter.lon, etab.latitude, etab.longitude)
+                        } else null
+                        EtablissementItem(etab, dist)
+                    }
+                    if (filter.distKm != null) {
+                        items = items.filter { it.distanceKm != null && it.distanceKm <= filter.distKm }
+                    }
+                    if (filter.lat != null) {
+                        items = items.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
+                    }
+                    items
+                }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList(),
+            )
 
     // -------------------------------------------------------------------------
     // État des mises à jour
@@ -65,25 +123,16 @@ class HomeViewModel @Inject constructor(
 
     private val workManager = WorkManager.getInstance(context)
 
-    /** True uniquement quand le Worker télécharge activement (RUNNING). */
     val isUpdateInProgress: StateFlow<Boolean> = workManager
         .getWorkInfosByTagFlow(DatabaseUpdateWorker.TAG)
-        .map { list ->
-            list.any { it.state == WorkInfo.State.RUNNING }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false,
-        )
+        .map { list -> list.any { it.state == WorkInfo.State.RUNNING } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    /** True si une nouvelle DB a été téléchargée et attend un redémarrage. */
     private val _updateAvailable = MutableStateFlow(
         prefs.getBoolean(PrefsKeys.UPDATE_DOWNLOADED, false)
     )
     val updateAvailable: StateFlow<Boolean> = _updateAvailable
 
-    /** Appelé après que l'utilisateur a vu la SnackBar (ou déclenché le redémarrage). */
     fun dismissUpdate() {
         _updateAvailable.value = false
         prefs.edit().putBoolean(PrefsKeys.UPDATE_DOWNLOADED, false).apply()
