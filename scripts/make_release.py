@@ -260,7 +260,7 @@ def _parse_finess_positional(text: str) -> list[dict]:
             "ville":       ville or "Ville inconnue",
             "telephone":   _clean_phone(col(_COL["telephone"])),
             "site_web":    None,
-            "latitude":    None,   # Coordonnées absentes dans ce fichier
+            "latitude":    None,
             "longitude":   None,
         })
 
@@ -280,6 +280,95 @@ def _clean_phone(phone: str) -> str | None:
     if len(digits) == 10:
         return f"{digits[0:2]}.{digits[2:4]}.{digits[4:6]}.{digits[6:8]}.{digits[8:10]}"
     return phone.strip() if phone.strip() else None
+
+
+# ---------------------------------------------------------------------------
+# Étape 2b : Géocodage batch via api-adresse.data.gouv.fr
+# ---------------------------------------------------------------------------
+
+GEOCODE_API_URL   = "https://api-adresse.data.gouv.fr/search/csv/"
+GEOCODE_BATCH     = 5_000   # max recommandé par le service
+GEOCODE_MIN_SCORE = 0.4     # seuil de confiance
+GEOCODE_RETRIES   = 3       # tentatives par lot en cas d'erreur réseau
+
+
+def _geocode_batch(batch: list[dict]) -> int:
+    """
+    Géocode un lot d'établissements. Retourne le nombre géolocalisés.
+    Met à jour les champs latitude/longitude dans la liste en place.
+    """
+    import csv as _csv
+
+    buf = io.StringIO()
+    writer = _csv.writer(buf)
+    writer.writerow(["id", "adresse", "code_postal", "ville"])
+    for etab in batch:
+        writer.writerow([
+            etab["finess_et"],
+            etab["adresse"],
+            etab["code_postal"],
+            etab["ville"],
+        ])
+    csv_bytes = buf.getvalue().encode("utf-8")
+
+    resp = requests.post(
+        GEOCODE_API_URL,
+        files  = {"data": ("batch.csv", csv_bytes, "text/csv")},
+        data   = [
+            ("columns", "adresse"),
+            ("columns", "ville"),
+            ("postcode", "code_postal"),
+        ],
+        timeout=180,
+    )
+    resp.raise_for_status()
+
+    reader = _csv.DictReader(io.StringIO(resp.text))
+    index  = {e["finess_et"]: e for e in batch}
+    lot_matched = 0
+    for row in reader:
+        finess_et = row.get("id", "")
+        try:
+            score = float(row.get("result_score", 0) or 0)
+            lat   = float(row.get("latitude", "") or "")
+            lon   = float(row.get("longitude", "") or "")
+        except (ValueError, TypeError):
+            continue
+        if score >= GEOCODE_MIN_SCORE and finess_et in index:
+            index[finess_et]["latitude"]  = lat
+            index[finess_et]["longitude"] = lon
+            lot_matched += 1
+    return lot_matched
+
+
+def geocode_etablissements(etablissements: list[dict]) -> None:
+    """
+    Géocode les établissements via l'API batch gouvernementale.
+    Met à jour les champs latitude/longitude directement dans la liste.
+    Retry automatique par lot en cas d'erreur réseau.
+    """
+    print(f"[2b] Géocodage de {len(etablissements)} etablissements via api-adresse.data.gouv.fr…")
+
+    matched = 0
+    for start in range(0, len(etablissements), GEOCODE_BATCH):
+        batch = etablissements[start : start + GEOCODE_BATCH]
+        end   = start + len(batch)
+        print(f"  Lot {start+1}-{end}/{len(etablissements)}…", end=" ", flush=True)
+
+        for attempt in range(1, GEOCODE_RETRIES + 1):
+            try:
+                lot_matched = _geocode_batch(batch)
+                matched += lot_matched
+                print(f"{lot_matched}/{len(batch)} geolocalises")
+                break
+            except Exception as exc:
+                if attempt < GEOCODE_RETRIES:
+                    print(f"[RETRY {attempt}/{GEOCODE_RETRIES}] {exc} — nouvel essai…", flush=True)
+                else:
+                    print(f"[SKIP] Lot ignoré après {GEOCODE_RETRIES} tentatives : {exc}")
+
+    pct = 100 * matched / len(etablissements) if etablissements else 0
+    print(f"[2b] Geocodage termine : {matched}/{len(etablissements)} ({pct:.0f}%) localises.")
 
 
 # ---------------------------------------------------------------------------
@@ -448,6 +537,9 @@ def main():
         if not etablissements:
             sys.exit("[ERREUR] Aucun établissement sanitaire trouvé dans le fichier FINESS.")
 
+        # 2b. Géocodage des adresses → lat/lon WGS84
+        geocode_etablissements(etablissements)
+
         # 3. Données qualité HAS (optionnel)
         qualite_data = fetch_has_quality_data()
 
@@ -461,8 +553,10 @@ def main():
         sys.exit("[ERREUR] Impossible de se connecter à internet.")
     except requests.exceptions.HTTPError as e:
         sys.exit(f"[ERREUR] HTTP {e.response.status_code} : {e}")
+    except KeyboardInterrupt:
+        sys.exit("\n[ANNULÉ] Interrompu par l'utilisateur.")
     except Exception as e:
-        sys.exit(f"[ERREUR] {e}")
+        sys.exit(f"[ERREUR] {type(e).__name__}: {e}")
 
 
 if __name__ == "__main__":
