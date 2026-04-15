@@ -222,11 +222,22 @@ def _parse_finess_positional(text: str) -> list[dict]:
             skipped_ferme += 1
             continue
 
-        # Filtre : sanitaire uniquement
-        # - "11xx" = établissements sanitaires classiques (CH, cliniques, HAD, SSR…)
-        # - "22xx" = Service de Santé des Armées (hôpitaux militaires, ex. Bégin)
+        # Filtre : établissements de santé retenus
+        # - "11xx" = sanitaire classique (CH, cliniques, HAD, SSR…)
+        # - "22xx" = Service de Santé des Armées (hôpitaux militaires)
+        # - "2103" = Maisons de santé, MMG (médecins de garde)
+        # - "2201" = Dispensaires, centres de vaccination
+        # - "2202" = PMI, planification familiale
+        # - "2206" = Centres de santé (généralistes, dentaires…)
+        # - "3101" = Laboratoires de biologie médicale
+        # - "3201" = Pharmacies d'officine
         categretab = col(_COL["categretab"])
-        if not (categretab.startswith("11") or categretab.startswith("22")):
+        CODES_RETENUS = {"2103", "2201", "2202", "2206", "3101", "3201"}
+        if not (
+            categretab.startswith("11")
+            or categretab.startswith("22")
+            or categretab in CODES_RETENUS
+        ):
             skipped_non_sani += 1
             continue
 
