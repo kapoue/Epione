@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.epione.app.ui.screen.about.AboutScreen
 import com.epione.app.ui.screen.detail.DetailScreen
 import com.epione.app.ui.screen.home.HomeScreen
 
@@ -22,7 +23,14 @@ fun EpioneNavHost() {
                 onEtablissementClick = { finessEt ->
                     navController.navigate(Screen.Detail.buildRoute(finessEt))
                 },
+                onAboutClick = {
+                    navController.navigate(Screen.About.route)
+                },
             )
+        }
+
+        composable(Screen.About.route) {
+            AboutScreen(onBack = { navController.popBackStack() })
         }
 
         composable(

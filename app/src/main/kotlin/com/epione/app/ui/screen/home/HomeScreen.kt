@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -71,6 +72,7 @@ private val DISTANCE_OPTIONS = listOf(5, 10, 20, 50, 100)
 @Composable
 fun HomeScreen(
     onEtablissementClick: (String) -> Unit,
+    onAboutClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val etablissements    by viewModel.etablissements.collectAsStateWithLifecycle()
@@ -132,6 +134,15 @@ fun HomeScreen(
                         text = stringResource(R.string.screen_home_title),
                         style = MaterialTheme.typography.titleLarge,
                     )
+                },
+                actions = {
+                    IconButton(onClick = onAboutClick) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = stringResource(R.string.screen_about_title),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,

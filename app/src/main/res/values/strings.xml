@@ -20,4 +20,22 @@
     <string name="search_clear">Effacer la recherche</string>
     <string name="location_enable">Activer la position</string>
     <string name="distance_all">Tous</string>
+    <!-- Lot 4 : actions fiche + à propos -->
+    <string name="action_call">Appeler</string>
+    <string name="action_navigate">Itinéraire</string>
+    <string name="action_website">Site web</string>
+    <string name="action_no_phone">Téléphone non renseigné</string>
+    <string name="action_no_coords">Localisation non disponible</string>
+    <string name="screen_about_title">À propos</string>
+    <string name="app_version">1.0.0</string>
+    <string name="about_version">Version</string>
+    <string name="about_data_source">Source des données</string>
+    <string name="about_data_source_value">FINESS — data.gouv.fr (Ministère de la Santé)</string>
+    <string name="about_geocoding">Géocodage</string>
+    <string name="about_geocoding_value">API Adresse — adresse.data.gouv.fr</string>
+    <string name="about_license">Licence</string>
+    <string name="about_license_value">Données ouvertes — Licence Ouverte v2.0 (Etalab)</string>
+    <string name="about_contact">Contact</string>
+    <string name="about_github">Code source (GitHub)</string>
+    <string name="about_disclaimer">Épione est un annuaire d\'établissements de santé à titre informatif. En cas d\'urgence, composez le 15 (SAMU), le 18 (pompiers) ou le 112.</string>
 </resources>
