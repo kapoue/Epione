@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -78,6 +79,7 @@ fun HomeScreen(
     val updateAvailable   by viewModel.updateAvailable.collectAsStateWithLifecycle()
     val hasLocation       by viewModel.hasLocation.collectAsStateWithLifecycle()
     val selectedDistanceKm by viewModel.selectedDistanceKm.collectAsStateWithLifecycle()
+    val selectedCategorie by viewModel.selectedCategorie.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -178,7 +180,8 @@ fun HomeScreen(
                 onExpandedChange = {},
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                windowInsets = WindowInsets(0),
                 content = {},
             )
 
@@ -197,6 +200,12 @@ fun HomeScreen(
                 },
             )
 
+            // ── Chips de filtre catégorie ────────────────────────────────────
+            CategoryChipsRow(
+                selectedCategorie = selectedCategorie,
+                onSelectCategorie = viewModel::setCategorie,
+            )
+
             Spacer(modifier = Modifier.height(4.dp))
 
             // ── Liste défilable ──────────────────────────────────────────────
@@ -213,7 +222,7 @@ fun HomeScreen(
                                 .padding(top = 48.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (query.isBlank() && selectedDistanceKm == null) {
+                            if (query.isBlank() && selectedDistanceKm == null && selectedCategorie == null) {
                                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             } else {
                                 Text(
@@ -282,6 +291,44 @@ private fun DistanceChipsRow(
                     label = { Text("$km km") },
                 )
             }
+        }
+    }
+}
+
+private val CATEGORIES_FILTRES = listOf(
+    TypeCategorie.PHARMACIE,
+    TypeCategorie.HOPITAL,
+    TypeCategorie.LABO,
+    TypeCategorie.MEDECIN,
+    TypeCategorie.CENTRE,
+    TypeCategorie.PMI,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoryChipsRow(
+    selectedCategorie: TypeCategorie?,
+    onSelectCategorie: (TypeCategorie?) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FilterChip(
+            selected = selectedCategorie == null,
+            onClick = { onSelectCategorie(null) },
+            label = { Text(stringResource(R.string.distance_all)) },
+        )
+        CATEGORIES_FILTRES.forEach { cat ->
+            FilterChip(
+                selected = selectedCategorie == cat,
+                onClick = { onSelectCategorie(if (selectedCategorie == cat) null else cat) },
+                label = { Text(cat.label) },
+            )
         }
     }
 }

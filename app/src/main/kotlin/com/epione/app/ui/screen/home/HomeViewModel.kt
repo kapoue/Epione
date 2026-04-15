@@ -30,11 +30,28 @@ data class EtablissementItem(
     val distanceKm: Double? = null,
 )
 
+/** Catégories affichées dans les chips de filtre. */
+enum class TypeCategorie(val label: String, val prefixes: List<String>) {
+    HOPITAL("Hôpital",    listOf("Centre Hospitalier", "Hôpital", "Clinique", "Soins de", "Lutte contre", "Dialyse", "Thermal", "Transfusion", "Maison de Naissance", "Soins Longue")),
+    PHARMACIE("Pharmacie", listOf("Pharmacie", "Propharmacie")),
+    LABO("Labo",          listOf("Laboratoire", "Biologie")),
+    MEDECIN("Médecin",    listOf("Maison de santé", "Maison médicale", "Communautés profession", "Equipes de Soins Spéc")),
+    CENTRE("Centre santé", listOf("Centre de Santé", "Centre de soins et")),
+    PMI("PMI / Famille",  listOf("Protection Maternelle", "Etablissement Consultation Protection", "Centre de santé sexuelle", "Espaces de vie", "Etablissement de Consultation Pré")),
+    AUTRE("Autre",         listOf()),  // catch-all
+}
+
+fun TypeCategorie.matches(type: String): Boolean {
+    if (this == TypeCategorie.AUTRE) return true
+    return prefixes.any { type.contains(it, ignoreCase = true) }
+}
+
 private data class FilterState(
     val query: String,
     val lat: Double?,
     val lon: Double?,
     val distKm: Int?,
+    val categorie: TypeCategorie?,
 )
 
 @HiltViewModel
@@ -81,12 +98,24 @@ class HomeViewModel @Inject constructor(
     }
 
     // -------------------------------------------------------------------------
+    // Filtre catégorie
+    // -------------------------------------------------------------------------
+
+    val selectedCategorie = MutableStateFlow<TypeCategorie?>(null)
+
+    fun setCategorie(cat: TypeCategorie?) {
+        selectedCategorie.value = cat
+    }
+
+    // -------------------------------------------------------------------------
     // Liste (avec distance calculée + filtre + tri)
     // -------------------------------------------------------------------------
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val etablissements: StateFlow<List<EtablissementItem>> =
-        combine(searchQuery, _userLat, _userLon, selectedDistanceKm, ::FilterState)
+        combine(searchQuery, _userLat, _userLon, selectedDistanceKm, selectedCategorie) { q, lat, lon, dist, cat ->
+            FilterState(q, lat, lon, dist, cat)
+        }
             .flatMapLatest { filter ->
                 val rawFlow = if (filter.query.isBlank()) {
                     repository.getAllEtablissements()
@@ -104,6 +133,9 @@ class HomeViewModel @Inject constructor(
                     }
                     if (filter.distKm != null) {
                         items = items.filter { it.distanceKm != null && it.distanceKm <= filter.distKm }
+                    }
+                    if (filter.categorie != null && filter.categorie != TypeCategorie.AUTRE) {
+                        items = items.filter { filter.categorie.matches(it.etablissement.type) }
                     }
                     if (filter.lat != null) {
                         items = items.sortedBy { it.distanceKm ?: Double.MAX_VALUE }
