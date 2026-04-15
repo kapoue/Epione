@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.epione.app.data.db.EpioneDatabase
 import com.epione.app.data.db.dao.EtablissementDao
+import com.epione.app.data.db.dao.FavoriDao
 import com.epione.app.data.db.dao.QualiteDao
 import dagger.Module
 import dagger.Provides
@@ -32,9 +33,7 @@ object AppModule {
         "epione.db",
     )
         .createFromAsset("epione.db")
-        // fallbackToDestructiveMigration — acceptable en Lot 1 (données de test uniquement).
-        // Remplacer par des migrations explicites en production (Lot 2+).
-        .fallbackToDestructiveMigration()
+        .addMigrations(EpioneDatabase.MIGRATION_1_2)
         .build()
 
     @Provides
@@ -42,4 +41,7 @@ object AppModule {
 
     @Provides
     fun provideQualiteDao(db: EpioneDatabase): QualiteDao = db.qualiteDao()
+
+    @Provides
+    fun provideFavoriDao(db: EpioneDatabase): FavoriDao = db.favoriDao()
 }

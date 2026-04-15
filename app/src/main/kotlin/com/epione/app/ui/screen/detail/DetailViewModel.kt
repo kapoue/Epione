@@ -9,7 +9,9 @@ import com.epione.app.data.repository.EtablissementRepository
 import com.epione.app.ui.navigation.NavArgs
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -31,6 +33,9 @@ class DetailViewModel @Inject constructor(
     private val _uiState = MutableStateFlow<DetailUiState>(DetailUiState.Loading)
     val uiState: StateFlow<DetailUiState> = _uiState
 
+    val isFavori: StateFlow<Boolean> = repository.isFavori(finessEt)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
     init {
         loadData()
     }
@@ -43,6 +48,16 @@ class DetailViewModel @Inject constructor(
             } else {
                 val qualite = repository.getQualite(finessEt)
                 DetailUiState.Success(etablissement, qualite)
+            }
+        }
+    }
+
+    fun toggleFavori() {
+        viewModelScope.launch {
+            if (isFavori.value) {
+                repository.removeFavori(finessEt)
+            } else {
+                repository.addFavori(finessEt)
             }
         }
     }

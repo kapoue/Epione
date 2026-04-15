@@ -38,4 +38,8 @@
     <string name="about_contact">Contact</string>
     <string name="about_github">Code source (GitHub)</string>
     <string name="about_disclaimer">Épione est un annuaire d\'établissements de santé à titre informatif. En cas d\'urgence, composez le 15 (SAMU), le 18 (pompiers) ou le 112.</string>
+    <!-- Lot 5 : favoris -->
+    <string name="filter_favoris">Favoris</string>
+    <string name="action_add_favori">Ajouter aux favoris</string>
+    <string name="action_remove_favori">Retirer des favoris</string>
 </resources>

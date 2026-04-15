@@ -52,6 +52,7 @@ private data class FilterState(
     val lon: Double?,
     val distKm: Int?,
     val categorie: TypeCategorie?,
+    val showFavorisOnly: Boolean,
 )
 
 @HiltViewModel
@@ -108,21 +109,35 @@ class HomeViewModel @Inject constructor(
     }
 
     // -------------------------------------------------------------------------
+    // Filtre Favoris
+    // -------------------------------------------------------------------------
+
+    val showFavorisOnly = MutableStateFlow(false)
+
+    fun toggleFavorisOnly() {
+        showFavorisOnly.value = !showFavorisOnly.value
+    }
+
+    // -------------------------------------------------------------------------
     // Liste (avec distance calculée + filtre + tri)
     // -------------------------------------------------------------------------
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val etablissements: StateFlow<List<EtablissementItem>> =
-        combine(searchQuery, _userLat, _userLon, selectedDistanceKm, selectedCategorie) { q, lat, lon, dist, cat ->
-            FilterState(q, lat, lon, dist, cat)
-        }
+        combine(
+            combine(searchQuery, _userLat, _userLon, selectedDistanceKm, selectedCategorie) { q, lat, lon, dist, cat ->
+                FilterState(q, lat, lon, dist, cat, false)
+            },
+            showFavorisOnly,
+        ) { fs, favs -> fs.copy(showFavorisOnly = favs) }
             .flatMapLatest { filter ->
                 val rawFlow = if (filter.query.isBlank()) {
                     repository.getAllEtablissements()
                 } else {
                     repository.searchEtablissements(filter.query)
                 }
-                rawFlow.map { list ->
+                combine(rawFlow, repository.getAllFavoris()) { list, favoris ->
+                    val favoriIds = favoris.map { it.finessEt }.toSet()
                     var items = list.map { etab ->
                         val dist = if (filter.lat != null && filter.lon != null &&
                             etab.latitude != null && etab.longitude != null
@@ -136,6 +151,9 @@ class HomeViewModel @Inject constructor(
                     }
                     if (filter.categorie != null && filter.categorie != TypeCategorie.AUTRE) {
                         items = items.filter { filter.categorie.matches(it.etablissement.type) }
+                    }
+                    if (filter.showFavorisOnly) {
+                        items = items.filter { it.etablissement.finessEt in favoriIds }
                     }
                     if (filter.lat != null) {
                         items = items.sortedBy { it.distanceKm ?: Double.MAX_VALUE }

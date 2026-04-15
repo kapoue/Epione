@@ -29,6 +29,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.AssistChip
@@ -36,6 +38,7 @@ import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -82,6 +85,7 @@ fun HomeScreen(
     val hasLocation       by viewModel.hasLocation.collectAsStateWithLifecycle()
     val selectedDistanceKm by viewModel.selectedDistanceKm.collectAsStateWithLifecycle()
     val selectedCategorie by viewModel.selectedCategorie.collectAsStateWithLifecycle()
+    val showFavorisOnly   by viewModel.showFavorisOnly.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -215,6 +219,8 @@ fun HomeScreen(
             CategoryChipsRow(
                 selectedCategorie = selectedCategorie,
                 onSelectCategorie = viewModel::setCategorie,
+                showFavorisOnly = showFavorisOnly,
+                onToggleFavoris = viewModel::toggleFavorisOnly,
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -233,7 +239,7 @@ fun HomeScreen(
                                 .padding(top = 48.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            if (query.isBlank() && selectedDistanceKm == null && selectedCategorie == null) {
+                            if (query.isBlank() && selectedDistanceKm == null && selectedCategorie == null && !showFavorisOnly) {
                                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             } else {
                                 Text(
@@ -320,6 +326,8 @@ private val CATEGORIES_FILTRES = listOf(
 private fun CategoryChipsRow(
     selectedCategorie: TypeCategorie?,
     onSelectCategorie: (TypeCategorie?) -> Unit,
+    showFavorisOnly: Boolean,
+    onToggleFavoris: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -330,14 +338,36 @@ private fun CategoryChipsRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         FilterChip(
-            selected = selectedCategorie == null,
-            onClick = { onSelectCategorie(null) },
+            selected = selectedCategorie == null && !showFavorisOnly,
+            onClick = {
+                onSelectCategorie(null)
+                if (showFavorisOnly) onToggleFavoris()
+            },
             label = { Text(stringResource(R.string.distance_all)) },
+        )
+        // Chip Favoris
+        FilterChip(
+            selected = showFavorisOnly,
+            onClick = {
+                onToggleFavoris()
+                if (selectedCategorie != null) onSelectCategorie(null)
+            },
+            label = { Text(stringResource(R.string.filter_favoris)) },
+            leadingIcon = {
+                Icon(
+                    imageVector = if (showFavorisOnly) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = null,
+                    modifier = Modifier.size(FilterChipDefaults.IconSize),
+                )
+            },
         )
         CATEGORIES_FILTRES.forEach { cat ->
             FilterChip(
-                selected = selectedCategorie == cat,
-                onClick = { onSelectCategorie(if (selectedCategorie == cat) null else cat) },
+                selected = selectedCategorie == cat && !showFavorisOnly,
+                onClick = {
+                    if (showFavorisOnly) onToggleFavoris()
+                    onSelectCategorie(if (selectedCategorie == cat && !showFavorisOnly) null else cat)
+                },
                 label = { Text(cat.label) },
             )
         }

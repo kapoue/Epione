@@ -17,6 +17,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,6 +58,7 @@ fun DetailScreen(
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val isFavori by viewModel.isFavori.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
@@ -67,6 +70,19 @@ fun DetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.nav_back),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = viewModel::toggleFavori) {
+                        Icon(
+                            imageVector = if (isFavori) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavori) {
+                                stringResource(R.string.action_remove_favori)
+                            } else {
+                                stringResource(R.string.action_add_favori)
+                            },
+                            tint = if (isFavori) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }
                 },
