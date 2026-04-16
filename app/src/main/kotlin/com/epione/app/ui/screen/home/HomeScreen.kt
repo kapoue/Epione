@@ -383,13 +383,14 @@ private fun CategoryChipsRow(
 private fun fetchLastLocation(context: Context, onLocation: (Double, Double) -> Unit) {
     val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+    val maxAgeMs = 5 * 60 * 1_000L // 5 minutes
 
-    // 1) Essai avec la dernière position connue (instantané)
+    // 1) Position en cache récente (< 5 min) → utilisation immédiate
     for (provider in providers) {
         try {
             if (lm.isProviderEnabled(provider)) {
                 val loc = lm.getLastKnownLocation(provider)
-                if (loc != null) {
+                if (loc != null && (System.currentTimeMillis() - loc.time) < maxAgeMs) {
                     onLocation(loc.latitude, loc.longitude)
                     return
                 }
@@ -397,7 +398,7 @@ private fun fetchLastLocation(context: Context, onLocation: (Double, Double) -> 
         } catch (_: Exception) {}
     }
 
-    // 2) Aucune position en cache → demande une mise à jour unique
+    // 2) Cache absent ou trop vieux → demande une position fraîche
     for (provider in providers) {
         try {
             if (lm.isProviderEnabled(provider)) {
