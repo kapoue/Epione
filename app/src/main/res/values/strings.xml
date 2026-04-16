@@ -27,7 +27,7 @@
     <string name="action_no_phone">Téléphone non renseigné</string>
     <string name="action_no_coords">Localisation non disponible</string>
     <string name="screen_about_title">À propos</string>
-    <string name="app_version">1.1.0</string>
+    <string name="app_version">1.1.1</string>
     <string name="about_version">Version</string>
     <string name="about_data_source">Source des données</string>
     <string name="about_data_source_value">FINESS — data.gouv.fr (Ministère de la Santé)</string>
