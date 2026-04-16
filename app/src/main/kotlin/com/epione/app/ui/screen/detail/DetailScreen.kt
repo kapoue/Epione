@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +61,8 @@ fun DetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isFavori by viewModel.isFavori.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val etablissement = (uiState as? DetailUiState.Success)?.etablissement
 
     Scaffold(
         topBar = {
@@ -74,6 +77,13 @@ fun DetailScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { shareEtablissement(context, etablissement) }) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.action_share),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
                     IconButton(onClick = viewModel::toggleFavori) {
                         Icon(
                             imageVector = if (isFavori) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -299,4 +309,29 @@ private fun DetailRow(label: String, value: String) {
             modifier = Modifier.weight(0.65f),
         )
     }
+}
+
+private fun shareEtablissement(
+    context: android.content.Context,
+    etablissement: com.epione.app.data.model.Etablissement?,
+) {
+    if (etablissement == null) return
+    val adresse = "${etablissement.adresse}, ${etablissement.codePostal} ${etablissement.ville}"
+    val mapsUrl = if (etablissement.latitude != null && etablissement.longitude != null) {
+        "https://www.google.com/maps/search/?api=1&query=${etablissement.latitude},${etablissement.longitude}"
+    } else {
+        val q = Uri.encode("${etablissement.nom} $adresse")
+        "https://www.google.com/maps/search/?api=1&query=$q"
+    }
+    val text = buildList {
+        add(etablissement.nom)
+        add("📍 $adresse")
+        if (!etablissement.telephone.isNullOrBlank()) add("📞 ${etablissement.telephone}")
+        add("🗺️ $mapsUrl")
+    }.joinToString("\n")
+    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    context.startActivity(Intent.createChooser(shareIntent, null))
 }

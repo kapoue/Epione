@@ -140,6 +140,14 @@ fun AboutScreen(onBack: () -> Unit) {
                     },
                 )
             }
+
+            // Fonctionnement hors ligne
+            AboutSection(title = stringResource(R.string.about_offline_title)) {
+                AboutRow(
+                    label = stringResource(R.string.about_offline_label),
+                    value = stringResource(R.string.about_offline_value),
+                )
+            }
         }
     }
 }

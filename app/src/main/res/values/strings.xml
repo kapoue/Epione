@@ -42,4 +42,9 @@
     <string name="filter_favoris">Favoris</string>
     <string name="action_add_favori">Ajouter aux favoris</string>
     <string name="action_remove_favori">Retirer des favoris</string>
+    <!-- Lot bonus 1 : partage + hors ligne -->
+    <string name="action_share">Partager</string>
+    <string name="about_offline_title">Fonctionnement hors ligne</string>
+    <string name="about_offline_label">Mode hors ligne</string>
+    <string name="about_offline_value">Toutes les données sont stockées localement sur votre appareil. L\'application fonctionne sans connexion internet. La connexion n\'est requise que pour les mises à jour automatiques de la base de données.</string>
 </resources>
