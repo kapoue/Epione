@@ -1,0 +1,96 @@
+name: Mise à jour mensuelle FINESS
+
+on:
+  schedule:
+    # Le 2 de chaque mois à 3h UTC — un jour après la publication de
+    # l'instantané mensuel officiel FINESS par l'État (le 1er), pour ne
+    # jamais arriver avant elle.
+    - cron: "0 3 2 * *"
+  workflow_dispatch: {}   # déclenchement manuel possible depuis l'onglet Actions
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cloner le dépôt Épione (Codeberg)
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          git clone "https://kapoue:${CODEBERG_TOKEN}@codeberg.org/kapoue/Epione.git" epione
+          cd epione
+          git config user.name "kapoue"
+          git config user.email "kapoue@noreply.codeberg.org"
+
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances
+        run: pip install requests
+
+      - name: Régénérer la base FINESS
+        working-directory: epione
+        run: python scripts/make_release.py
+
+      - name: Publier (commit, push, release Codeberg)
+        working-directory: epione
+        env:
+          CODEBERG_TOKEN: ${{ secrets.CODEBERG_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          VERSION=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
+          TAG="v${VERSION}.0"
+          RECORDS=$(python3 -c "import json;print(json.load(open('manifest.json'))['record_count'])")
+          TODAY=$(date +%F)
+          DB_URL="https://codeberg.org/kapoue/Epione/releases/download/${TAG}/epione.db"
+
+          python3 - "$DB_URL" "$TODAY" <<'PY'
+          import json, sys
+          url, today = sys.argv[1:3]
+          m = json.load(open("manifest.json"))
+          m["db_url"] = url
+          m["released_at"] = today
+          with open("manifest.json", "w") as f:
+              json.dump(m, f, ensure_ascii=False, indent=2)
+              f.write("\n")
+          PY
+
+          git add app/src/main/assets/epione.db manifest.json
+          if git diff --cached --quiet; then
+            echo "Aucun changement — rien à publier ce mois-ci."
+            exit 0
+          fi
+          git commit -m "data: BDD FINESS ${TODAY} — ${RECORDS} établissements (auto)"
+          git push origin main
+
+          API="https://codeberg.org/api/v1/repos/kapoue/Epione"
+
+          REL_ID=$(curl -fsS -H "Authorization: token ${CODEBERG_TOKEN}" \
+            "$API/releases/tags/$TAG" 2>/dev/null \
+            | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+
+          if [ -z "$REL_ID" ]; then
+            echo "Création de la release ${TAG}…"
+            REL_ID=$(curl -fsS -X POST "$API/releases" \
+              -H "Authorization: token ${CODEBERG_TOKEN}" -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"$TAG\",\"target_commitish\":\"main\",\"name\":\"BDD FINESS ${TODAY}\",\"body\":\"${RECORDS} établissements (source FINESS+ / data.gouv.fr, mise à jour automatique).\"}" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])")
+          else
+            echo "Release ${TAG} déjà existante — remplacement du fichier."
+            OLD_ASSET=$(curl -fsS -H "Authorization: token ${CODEBERG_TOKEN}" \
+              "$API/releases/$REL_ID/assets" \
+              | python3 -c "import sys,json;[print(a['id']) for a in json.load(sys.stdin) if a['name']=='epione.db']" || true)
+            if [ -n "$OLD_ASSET" ]; then
+              curl -fsS -X DELETE -H "Authorization: token ${CODEBERG_TOKEN}" \
+                "$API/releases/$REL_ID/assets/$OLD_ASSET" >/dev/null
+            fi
+          fi
+
+          echo "Upload de epione.db…"
+          curl -fsS -X POST "$API/releases/$REL_ID/assets?name=epione.db" \
+            -H "Authorization: token ${CODEBERG_TOKEN}" \
+            -F "attachment=@app/src/main/assets/epione.db;type=application/octet-stream" >/dev/null
+
+          echo "✅ Version ${VERSION} publiée automatiquement."
