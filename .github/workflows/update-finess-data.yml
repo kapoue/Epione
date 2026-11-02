@@ -94,3 +94,18 @@ jobs:
             -F "attachment=@app/src/main/assets/epione.db;type=application/octet-stream" >/dev/null
 
           echo "✅ Version ${VERSION} publiée automatiquement."
+
+  keepalive:
+    # GitHub désactive les workflows planifiés après 60 jours sans activité sur
+    # le dépôt ; or ce robot pousse sur Codeberg, jamais ici. Réactiver le
+    # workflow via l'API remet le compteur à zéro, sans commit factice.
+    if: always()
+    needs: update
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Garder le workflow actif
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/update-finess-data.yml/enable"
